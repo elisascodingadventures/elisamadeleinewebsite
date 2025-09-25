@@ -6,8 +6,15 @@ type Pt = { x: number; y: number };
 type Size = { w: number; h: number };
 type Rect = { x: number; y: number; w: number; h: number };
 
-// Intrinsic-pixel hotspot rectangle: (x1,y1) -> (x2,y2)
-const HOTSPOT_INTRINSIC = {
+// Intrinsic-pixel hotspot rectangles
+const HOTSPOT_LEFT_INTRINSIC = {
+  x1: 160,
+  y1: 453,
+  x2: 696,
+  y2: 542,
+};
+
+const HOTSPOT_RIGHT_INTRINSIC = {
   x1: 2069,
   y1: 9497,
   x2: 13575,
@@ -124,7 +131,7 @@ function MovableCard({
             height: hotspot.h,
           }}
         >
-          {/* Tiny hover badge to make clickability obvious (appears on hover/focus) */}
+          {/* Hover/focus badge */}
           <span
             className="pointer-events-none absolute right-1 bottom-1
                        rounded px-1.5 py-0.5 text-[10px] font-medium
@@ -143,9 +150,18 @@ function MovableCard({
 
 export default function TwoImageCardsAutoSizeWithHotspot() {
   const [ready, setReady] = useState(false);
+  const [bgUrl, setBgUrl] = useState<string | null>(null); // background image if present
   const [sizes, setSizes] = useState<{ left: Size; right: Size } | null>(null);
   const [centers, setCenters] = useState<{ left: Pt; right: Pt } | null>(null);
   const [hotspots, setHotspots] = useState<{ left: Rect; right: Rect } | null>(null);
+
+  // Try to use /image3.png as page background; fall back to black if not found
+  useLayoutEffect(() => {
+    const img = new Image();
+    img.onload = () => setBgUrl("/image3.png");
+    img.onerror = () => setBgUrl(null);
+    img.src = "/image3.png";
+  }, []);
 
   useLayoutEffect(() => {
     const loadMeta = (src: string) =>
@@ -179,27 +195,29 @@ export default function TwoImageCardsAutoSizeWithHotspot() {
       const { size: rightSize, scale: sRight } = fit(metaRight);
       setSizes({ left: leftSize, right: rightSize });
 
-      // scale the intrinsic hotspot for each image
-      const dx = HOTSPOT_INTRINSIC.x2 - HOTSPOT_INTRINSIC.x1;
-      const dy = HOTSPOT_INTRINSIC.y2 - HOTSPOT_INTRINSIC.y1;
-      const leftHotspot: Rect = {
-        x: HOTSPOT_INTRINSIC.x1 * sLeft,
-        y: HOTSPOT_INTRINSIC.y1 * sLeft,
-        w: dx * sLeft,
-        h: dy * sLeft,
-      };
-      const rightHotspot: Rect = {
-        x: HOTSPOT_INTRINSIC.x1 * sRight,
-        y: HOTSPOT_INTRINSIC.y1 * sRight,
-        w: dx * sRight,
-        h: dy * sRight,
-      };
+      // helper to scale intrinsic rect by scale factor
+      const scaleRect = (
+        r: { x1: number; y1: number; x2: number; y2: number },
+        s: number
+      ): Rect => ({
+        x: r.x1 * s,
+        y: r.y1 * s,
+        w: (r.x2 - r.x1) * s,
+        h: (r.y2 - r.y1) * s,
+      });
+
+      // scale each hotspot using its own image's scale
+      const leftHotspot = scaleRect(HOTSPOT_LEFT_INTRINSIC, sLeft);
+      const rightHotspot = scaleRect(HOTSPOT_RIGHT_INTRINSIC, sRight);
       setHotspots({ left: leftHotspot, right: rightHotspot });
 
       // place them side-by-side centered with a gap
       const gap = 24;
       const totalW = leftSize.w + gap + rightSize.w;
-      const y = Math.max(margin, (window.innerHeight - Math.max(leftSize.h, rightSize.h)) / 2);
+      const y = Math.max(
+        margin,
+        (window.innerHeight - Math.max(leftSize.h, rightSize.h)) / 2
+      );
       const startX = Math.max(margin, (window.innerWidth - totalW) / 2);
 
       setCenters({
@@ -225,28 +243,42 @@ export default function TwoImageCardsAutoSizeWithHotspot() {
   }, []);
 
   if (!ready || !sizes || !centers || !hotspots) {
-    return <main className="min-h-screen w-full bg-black" />;
+    return (
+      <main
+        className="min-h-screen w-full relative overflow-hidden"
+        style={{ backgroundColor: "black" }}
+      />
+    );
   }
 
   return (
-    <main className="min-h-screen w-full bg-black relative overflow-hidden">
-      {/* Left = /image2.png → openai.com */}
+    <main
+      className="min-h-screen w-full relative overflow-hidden"
+      style={{
+        backgroundColor: "black",
+        backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Left = /image2.png → openai.com with custom hotspot */}
       <MovableCard
         id="Left"
         initial={centers.left}
         size={sizes.left}
         imageUrl="/image2.png"
         hotspot={hotspots.left}
-        linkHref="https://openai.com"
+        linkHref="https://bokcenter.harvard.edu/people/madeleine-woods"
       />
-      {/* Right = /image.png → apple.com */}
+      {/* Right = /image.png → apple.com with original hotspot */}
       <MovableCard
         id="Right"
         initial={centers.right}
         size={sizes.right}
         imageUrl="/image.png"
         hotspot={hotspots.right}
-        linkHref="https://apple.com"
+        linkHref="https://www.linkedin.com/in/elisadiopweyer/"
       />
     </main>
   );
